@@ -200,31 +200,14 @@ Indexes support “latest fact per user+movie” queries.
 
 ---
 
-## 6. Future Improvements (≈2 more hours)
+## 6. Future Improvements (With 2 More Hours)
 
-- **Tests:** Integration tests against a test DB for advisory-lock behavior; API route tests with mocked `auth()`; expand Gemini mocks for 429/timeout paths.
-- **UI:** Skeleton/error/retry on the dashboard fact panel; optional “Refresh” with debounce.
-- **Observability:** Structured logging (request id, `userId` hash), metrics for cache hit rate and LLM latency.
-- **Caching layer:** Redis for cross-instance single-flight or rate limiting (only if product needs multi-region scale).
-- **Content:** Stricter prompt validation; optional moderation hook for LLM output.
-- **Accessibility:** Audit Prism landing + focus states on auth flows.
+- **Feature Expansion:** Implement the ability for users to edit their favorite movie inline and manually request a new fun fact, backed by optimistic UI updates and proper cache invalidation.
+- **Enhanced UX & Styling:** Refine the user interface with polished CSS/Tailwind styling, improving the visual hierarchy and adding smooth transitions for loading, error, and empty states. Add an auto-refresh or a debounce-controlled "Refresh Fact" button on the dashboard so users can seamlessly fetch new facts once the 60-second cache expires.
+- **Expanded Testing:** Broaden the test suite beyond the cache logic to include end-to-end (E2E) testing for the onboarding and dashboard flows, plus deeper integration tests against a test DB for the advisory-lock behavior.
+- **Robust Observability & Troubleshooting:** Implement more granular, structured error logging (capturing request IDs and hashed user IDs) to make debugging production LLM timeouts, API rate limits, or database deadlocks much easier.
+- **Caching Layer:** Introduce Redis for cross-instance single-flight or rate limiting, which would be necessary if the product needed to scale to a multi-region deployment.
 
 ---
 
-## 7. AI Usage
 
-### Scaffolding the Base Implementation
-
-I used AI to accelerate the initial setup. By providing my chosen database (Neon DB) and my proposed Prisma schema, I used AI to generate the foundational boilerplate for the Next.js routes, NextAuth integration, and basic database connections.
-
-### Refining the Caching Strategy
-
-For Variant A, I designed and provided the initial caching strategy—combining a 60-second rolling cache window with Postgres advisory locks to safely handle concurrency. When I faced implementation issues, particularly around preventing DB transactions from staying open during the Gemini API calls, I used AI to debug the code and refine my logic to ensure backend correctness.
-
-### UI Integration
-
-I utilized AI to assist in integrating the react-bits library, specifically to implement the WebGL Prism background animation on the landing page. This saved time on frontend styling so I could focus heavily on the backend architecture.
-
-### Code Review & Refinement
-
-While AI generated the initial structure, I manually reviewed, audited, and refined all business logic, database queries, and failure-handling paths to ensure strict adherence to the project's security and authorization requirements.
