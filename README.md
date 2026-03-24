@@ -129,6 +129,43 @@ GEMINI_API_KEY="your-gemini-api-key"
 
 ## 3. Architecture Overview
 
+High-level components and data flow:
+
+```mermaid
+flowchart TB
+  subgraph client["Client"]
+    pages["App Router pages<br/>/ · /onboarding · /dashboard"]
+  end
+
+  subgraph edge["Edge"]
+    mw["middleware.ts + auth.config.ts<br/>JWT session checks"]
+  end
+
+  subgraph node["Node.js runtime"]
+    authRoute["/api/auth/[...nextauth]<br/>Google OAuth + Prisma adapter"]
+    factRoute["GET /api/movie-fact"]
+    movieFact["movie-fact.ts<br/>cache, advisory locks, persistence"]
+    geminiMod["gemini.ts"]
+  end
+
+  subgraph external["External services"]
+    pg[("Neon PostgreSQL")]
+    goog["Google OAuth"]
+    gemapi["Google Gemini API"]
+  end
+
+  pages --> mw
+  mw --> pages
+  pages --> authRoute
+  pages --> factRoute
+  authRoute --> goog
+  authRoute --> pg
+  factRoute --> movieFact
+  movieFact --> pg
+  movieFact --> geminiMod
+  geminiMod --> gemapi
+```
+
 ### Next.js App Router
 
 - **`/`** — Public landing (Prism WebGL background); redirects authenticated users to onboarding or dashboard.
