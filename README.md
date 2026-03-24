@@ -1,36 +1,225 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Movie Memory
 
-## Getting Started
+## 1. Project Overview
 
-First, run the development server:
+**Movie Memory** is a small full-stack web app where users sign in with Google, complete a one-time onboarding step (favorite movie title), and land on a dashboard that shows their profile and an AI-generated **fun fact** about that movie. Facts are persisted in Postgres, with **Variant A** behavior: a rolling **60-second cache**, **concurrency-safe** generation, and **graceful degradation** when the LLM API fails.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+**Tech stack**
+
+| Layer | Technology |
+|--------|------------|
+| Framework | **Next.js 16** (App Router), **React 19**, **TypeScript** |
+| Styling | **Tailwind CSS** v4 |
+| Database | **PostgreSQL** (Neon) via **Prisma ORM** |
+| Auth | **Auth.js / NextAuth v5** (`next-auth@5`), **Google OAuth**, **Prisma adapter** |
+| Sessions | **JWT** (Edge-safe middleware; Prisma + adapter in Node handlers only) |
+| LLM | **Google Gemini** (`@google/generative-ai`) — server-only; configurable model via env |
+| Validation | **Zod** (onboarding favorite-movie title) |
+| WebGL (landing) | **ogl** (Prism-style background on `/`) |
+| Tests | **Vitest** |
+
+**Note:** The exercise spec often references **OpenAI**; this codebase implements generation with **Gemini**. The caching, locking, and fallback logic in `src/lib/services/movie-fact.ts` are provider-agnostic aside from `src/lib/gemini.ts`.
+
+---
+
+## 2. Setup Instructions
+
+### Prerequisites
+
+- **Node.js** 20+ (see `package.json` / CI expectations)
+- **npm** (or compatible package manager)
+- Accounts: **Neon** (or any Postgres URL), **Google Cloud** OAuth client, **Google AI Studio** API key for Gemini
+
+### Step-by-step (local)
+
+1. **Clone and install**
+
+   ```bash
+   git clone <your-repo-url>
+   cd nikhil_dalla
+   npm install
+   ```
+
+   `postinstall` runs `prisma generate` so the Prisma client is generated under `src/generated/prisma`.
+
+2. **Environment variables**
+
+   Copy the example file and fill in real values:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   See **Environment variables** below for the full list and dummy examples.
+
+3. **Database migrations (Neon / Postgres)**
+
+   Point `DATABASE_URL` at your Neon database (SSL recommended for Neon).
+
+   **Development** (creates/applies migrations and updates the DB):
+
+   ```bash
+   npx prisma migrate dev
+   ```
+
+   **Production / CI** (apply existing migrations only):
+
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+   **Generate client only** (if you changed schema without migrating yet):
+
+   ```bash
+   npx prisma generate
+   ```
+
+4. **Google OAuth redirect URIs**
+
+   In Google Cloud Console → OAuth client, add:
+
+   - `http://localhost:3000/api/auth/callback/google` (local)
+   - Your production origin + `/api/auth/callback/google` when deployed
+
+5. **Run the app**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000).
+
+### Environment variables (reference — use real secrets locally)
+
+| Variable | Required | Example (dummy) | Purpose |
+|----------|----------|-------------------|---------|
+| `DATABASE_URL` | Yes | `postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require` | Neon Postgres connection |
+| `AUTH_SECRET` | Yes | `dGVzdC1zZWNyZXQtbWluaW11bS0zMi1jaGFycy1sb25n` | Auth.js session signing (`openssl rand -base64 32`) |
+| `GOOGLE_CLIENT_ID` | Yes | `123456789-abc.apps.googleusercontent.com` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Yes | `GOCSPX-dummysecretvalue` | Google OAuth client secret |
+| `GEMINI_API_KEY` | Yes | `AIzaSyDummyKeyForReadmeOnly` | Google AI Studio / Gemini API key |
+| `AUTH_URL` or `NEXTAUTH_URL` | Deploy | `https://your-app.vercel.app` | Public site URL (Auth.js) |
+| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Override default model (code default: `gemini-2.5-flash`) |
+| `MOVIE_FACT_CACHE_MS` | No | `60000` or `0` | Cache window ms (`0` = always call LLM when policy allows) |
+
+Example `.env` skeleton (do not commit real secrets):
+
+```env
+DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require"
+AUTH_SECRET="replace-with-openssl-rand-base64-32"
+GOOGLE_CLIENT_ID="your-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your-secret"
+GEMINI_API_KEY="your-gemini-api-key"
+# GEMINI_MODEL="gemini-2.5-flash"
+# MOVIE_FACT_CACHE_MS="60000"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Useful commands
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Next.js dev server |
+| `npm run build` | Production build |
+| `npm run start` | Run production server |
+| `npm run lint` | ESLint |
+| `npm test` | Vitest (`vitest run`) |
+| `npx prisma studio` | Browse DB in GUI |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 3. Architecture Overview
 
-To learn more about Next.js, take a look at the following resources:
+### Next.js App Router
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **`/`** — Public landing (Prism WebGL background); redirects authenticated users to onboarding or dashboard.
+- **`/onboarding`** — Server-validated favorite movie; writes `FavoriteMovie` and sets `User.onboardingCompleted`.
+- **`/dashboard`** — Profile + fun fact panel (client fetch to API).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Middleware** (`src/middleware.ts`) uses a **Prisma-free** Auth config (`src/auth.config.ts`) so it stays Edge-compatible; it redirects unauthenticated users away from `/dashboard` and `/onboarding`.
 
-## Deploy on Vercel
+### API routes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Route | Role |
+|-------|------|
+| `GET /api/movie-fact` | Returns a fun fact for the **session user only** (`session.user.id`). No movie IDs from the client. **Node runtime** (`export const runtime = "nodejs"`) for Prisma + Gemini. |
+| `/api/auth/[...nextauth]` | Auth.js handlers (Google sign-in/out). |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Business logic for facts lives in **`src/lib/services/movie-fact.ts`**, not in the route handler. LLM calls are isolated in **`src/lib/gemini.ts`**.
+
+### Database schema (Prisma)
+
+- **Auth.js tables:** `User`, `Account`, `Session`, `VerificationToken` (see `prisma/schema.prisma`).
+- **App tables:**
+  - **`FavoriteMovie`** — one row per user (`userId` unique); `title` from onboarding.
+  - **`MovieFact`** — append-only rows (`userId`, `favoriteMovieId`, `content`, `createdAt`) for audit and cache fallback.
+
+Indexes support “latest fact per user+movie” queries.
+
+### Auth flow
+
+- **JWT sessions** with **Prisma adapter** for OAuth account linking and user persistence.
+- **`jwt` / `session` callbacks** copy `name`, `email`, and `picture` into the token/session so profile data survives beyond the first response.
+
+---
+
+## 4. Variant Selection: **Variant A (Backend-Focused)**
+
+**Variant A** was implemented: **caching & correctness** on the server, not extra UI features.
+
+**Why this variant**
+
+- **Backend correctness** — Authorization is enforced by always resolving the favorite movie and facts by **`session.user.id`** only; the API does not trust client-supplied movie IDs.
+- **Rate limits & 503s** — A **60s rolling cache** reduces duplicate Gemini calls. **Single-flight** (`Map` per user) and **Postgres advisory locks** reduce bursts. **429** is retried once with backoff in `gemini.ts`. On hard failure, the service returns the **last stored fact** when available, otherwise a **clean 503 JSON** message (no secrets leaked).
+- **Data integrity** — New facts are written in **short transactions** with `pg_advisory_xact_lock` so concurrent tabs don’t corrupt state; Gemini runs **outside** long DB transactions to avoid Neon/serverless connection issues.
+
+---
+
+## 5. Key Tradeoffs
+
+### 60-second cache window
+
+- **Behavior:** The latest `MovieFact` for `(userId, favoriteMovieId)` is reused if `createdAt` is within **`MOVIE_FACT_CACHE_MS`** (default **60_000** ms). **`CACHE_WINDOW_MS === 0`** disables the time check (always eligible for a new generation subject to locking).
+- **Tradeoff:** Rolling window vs fixed clock buckets — simpler mental model and matches “last fact younger than 60s” without extra columns.
+
+### Concurrency / burst protection
+
+1. **In-process single-flight** — `inFlightByUserId` ensures concurrent HTTP requests for the same user **share one** `getOrCreateMovieFact` promise (helps React Strict Mode double-fetch in dev).
+2. **Postgres `pg_advisory_xact_lock`** — Short transactions serialize “peek / insert” per `(userId, favoriteMovieId)` so two tabs don’t both insert redundant rows in a race.
+3. **Gemini outside transactions** — Avoids holding a DB connection open for the full LLM latency (important on Neon).
+
+**Tradeoff:** Single-flight is per Node process; in multi-instance deploys, advisory locks still protect the DB; duplicate LLM calls across instances are reduced by cache + lock, not eliminated without a distributed lock.
+
+### Failure handling
+
+- **Gemini errors** (timeout, 429 after retry, empty body) → load **most recent** `MovieFact` for that user+movie if any → response `source: "fallback"` when applicable.
+- **No rows and LLM failed** → **503** with a generic user-facing string; errors logged server-side.
+- **Persist failure after a successful generation** → try same fallback path.
+
+---
+
+## 6. Future Improvements (≈2 more hours)
+
+- **Tests:** Integration tests against a test DB for advisory-lock behavior; API route tests with mocked `auth()`; expand Gemini mocks for 429/timeout paths.
+- **UI:** Skeleton/error/retry on the dashboard fact panel; optional “Refresh” with debounce.
+- **Observability:** Structured logging (request id, `userId` hash), metrics for cache hit rate and LLM latency.
+- **Caching layer:** Redis for cross-instance single-flight or rate limiting (only if product needs multi-region scale).
+- **Content:** Stricter prompt validation; optional moderation hook for LLM output.
+- **Accessibility:** Audit Prism landing + focus states on auth flows.
+
+---
+
+## 7. AI Usage
+
+_Use this section to describe your own process. Suggested bullets to fill in:_
+
+- **Tooling:** (e.g. which assistants, IDEs, or codegen tools you used)
+- **How it helped:** (e.g. scaffolding, refactors, debugging, docs)
+- **What you verified manually:** (e.g. auth flow, migrations, production build)
+- **What you wrote without AI:** (e.g. core business logic, schema decisions)
+- **Policies:** (e.g. no secrets pasted into prompts; review of generated SQL/migrations)
+
+---
+
+## License
+
+Private / take-home exercise — use per your employer or school policy.
