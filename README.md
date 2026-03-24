@@ -210,16 +210,18 @@ Indexes support “latest fact per user+movie” queries.
 
 ## 7. AI Usage
 
-_Use this section to describe your own process. Suggested bullets to fill in:_
+### Scaffolding the Base Implementation
 
-- **Tooling:** (e.g. which assistants, IDEs, or codegen tools you used)
-- **How it helped:** (e.g. scaffolding, refactors, debugging, docs)
-- **What you verified manually:** (e.g. auth flow, migrations, production build)
-- **What you wrote without AI:** (e.g. core business logic, schema decisions)
-- **Policies:** (e.g. no secrets pasted into prompts; review of generated SQL/migrations)
+I used AI to accelerate the initial setup. By providing my chosen database (Neon DB) and my proposed Prisma schema, I used AI to generate the foundational boilerplate for the Next.js routes, NextAuth integration, and basic database connections.
 
----
+### Refining the Caching Strategy
 
-## License
+For Variant A, I designed and provided the initial caching strategy—combining a 60-second rolling cache window with Postgres advisory locks to safely handle concurrency. When I faced implementation issues, particularly around preventing DB transactions from staying open during the Gemini API calls, I used AI to debug the code and refine my logic to ensure backend correctness.
 
-Private / take-home exercise — use per your employer or school policy.
+### UI Integration
+
+I utilized AI to assist in integrating the react-bits library, specifically to implement the WebGL Prism background animation on the landing page. This saved time on frontend styling so I could focus heavily on the backend architecture.
+
+### Code Review & Refinement
+
+While AI generated the initial structure, I manually reviewed, audited, and refined all business logic, database queries, and failure-handling paths to ensure strict adherence to the project's security and authorization requirements.
