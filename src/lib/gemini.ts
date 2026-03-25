@@ -13,12 +13,12 @@ function getGenerativeModel() {
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash-lite";
 
   return genAI.getGenerativeModel({
     model: modelName,
     systemInstruction:
-      "You are a film enthusiast. Respond with exactly one interesting, accurate fun fact about the movie named by the user. Plain text only, not more than 6 words. No markdown.",
+      "You are a film enthusiast. Respond with exactly one interesting, complete and grammatically correct fun fact about the movie named by the user. You MUST finish your thought and end the sentence with a period. Do not cut off mid-sentence. Plain text only, No markdown.",
     generationConfig: {
       maxOutputTokens: 220,
       temperature: 0.7,
